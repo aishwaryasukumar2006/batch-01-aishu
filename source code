@@ -1,34 +1,69 @@
-# 1. Import necessary libraries
+# Step 1: Install Required Libraries
+!pip install pandas numpy matplotlib seaborn scikit-learn shap --quiet
+
+# Step 2: Import Libraries
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import shap
+import warnings
+warnings.filterwarnings('ignore')
 
-# 2. Load the dataset
-data = pd.read_csv('customer_churn.csv')  # Replace with your file name
+# Step 3: Load Dataset
+# Step 3: Load Dataset
+url = "https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/master/data/Telco-Customer-Churn.csv"  # Updated URL
+df = pd.read_csv(url)
 
-# 3. Encode categorical variables
-for col in data.columns:
-    if data[col].dtype == 'object':
-        data[col] = data[col].astype('category').cat.codes
+# Step 4: Data Overview
+print(df.head())
+print("\nMissing values:\n", df.isnull().sum())
 
-# 4. Define features and target
-X = data.drop('Churn', axis=1)
-y = data['Churn']
+# Step 5: Data Preprocessing
+df.drop(['customerID'], axis=1, inplace=True)
 
-# 5. Split data into train and test sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+# Convert TotalCharges to numeric (some non-numeric values exist)
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+df['TotalCharges'].fillna(df['TotalCharges'].median(), inplace=True)
 
-# 6. Build the model
-model = RandomForestClassifier(random_state=0)
+# Encode categorical variables
+for column in df.select_dtypes(include=['object']).columns:
+    if df[column].nunique() == 2:
+        df[column] = LabelEncoder().fit_transform(df[column])
+    else:
+        df = pd.get_dummies(df, columns=[column])
+
+# Step 6: Feature & Target Split
+X = df.drop('Churn', axis=1)
+y = df['Churn']
+
+# Step 7: Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Step 8: Train Model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# 7. Make predictions
+# Step 9: Predictions
 y_pred = model.predict(X_test)
 
-# 8. Evaluate the model
-print(classification_report(y_test, y_pred))
+# Step 10: Evaluation
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d')
+plt.title("Confusion Matrix")
+plt.show()
 
-# 9. Show feature importance (hidden patterns)
-importances = pd.Series(model.feature_importances_, index=X.columns)
-importances.sort_values(ascending=False).plot(kind='bar', title='Feature Importances')
+# Step 11: Feature Importance (Hidden Patterns)
+importances = model.feature_importances_
+indices = np.argsort(importances)[::-1]
+features = X.columns
+
+plt.figure(figsize=(12, 8))
+sns.barplot(x=importances[indices][:10], y=features[indices][:10])
+plt.title("Top 10 Feature Importances")
+plt.show() 
